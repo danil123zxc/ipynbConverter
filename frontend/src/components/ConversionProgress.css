@@ -1,0 +1,35 @@
+.conversion-progress-container {
+  max-width: 700px;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+.progress {
+  height: 10px;
+  border-radius: 5px;
+  background-color: #e9ecef;
+}
+
+.progress-bar {
+  background-color: #4a89dc;
+  transition: width 0.5s ease;
+}
+
+.conversion-success-icon {
+  color: #28a745;
+  margin-bottom: 1rem;
+}
+
+.conversion-error-icon {
+  color: #dc3545;
+  margin-bottom: 1rem;
+}
+
+.banner-container {
+  text-align: center;
+}
+
+.banner-image {
+  max-height: 200px;
+  object-fit: cover;
+}

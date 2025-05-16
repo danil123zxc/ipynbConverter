@@ -1,0 +1,11 @@
+header {
+  border-bottom: 1px solid #e9ecef;
+}
+
+.text-primary {
+  color: #4a89dc !important;
+}
+
+.lead {
+  font-size: 1.1rem;
+}

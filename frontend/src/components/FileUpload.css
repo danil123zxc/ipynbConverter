@@ -1,0 +1,53 @@
+.file-upload-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.dropzone {
+  border: 2px dashed #dee2e6;
+  border-radius: 10px;
+  padding: 3rem 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  background-color: #f8f9fa;
+}
+
+.dropzone:hover, .dropzone-active {
+  border-color: #4a89dc;
+  background-color: rgba(74, 137, 220, 0.05);
+}
+
+.dropzone-content {
+  color: #6c757d;
+}
+
+.selected-file-container {
+  margin-top: 1rem;
+}
+
+.smaller {
+  font-size: 0.75rem;
+}
+
+.step-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #4a89dc;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+  font-weight: bold;
+}
+
+.banner-container {
+  text-align: center;
+}
+
+.banner-image {
+  max-height: 200px;
+  object-fit: cover;
+}

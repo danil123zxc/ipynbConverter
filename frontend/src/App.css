@@ -1,0 +1,123 @@
+/* Main App Styles */
+body {
+  background-color: #f8f9fa;
+  color: #333;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.app-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+  padding: 2rem 0;
+}
+
+/* Card styles */
+.card {
+  border-radius: 10px;
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+/* Button styles */
+.btn-primary {
+  background-color: #4a89dc;
+  border-color: #4a89dc;
+}
+
+.btn-primary:hover {
+  background-color: #3b78cc;
+  border-color: #3b78cc;
+}
+
+.btn-outline-secondary {
+  color: #6c757d;
+  border-color: #6c757d;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #6c757d;
+  color: white;
+}
+
+/* Dropzone styles */
+.dropzone {
+  border: 2px dashed #dee2e6;
+  border-radius: 5px;
+  padding: 2rem;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.dropzone:hover {
+  border-color: #4a89dc;
+}
+
+.dropzone-active {
+  border-color: #4a89dc;
+  background-color: rgba(74, 137, 220, 0.05);
+}
+
+/* Progress bar styles */
+.progress {
+  height: 10px;
+  border-radius: 5px;
+  margin-top: 1rem;
+  margin-bottom: 1rem;
+}
+
+.progress-bar {
+  background-color: #4a89dc;
+}
+
+/* Loading animation */
+.loading-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Images styles */
+.img-banner {
+  max-width: 100%;
+  height: auto;
+  border-radius: 5px;
+  margin-bottom: 1.5rem;
+}
+
+/* Footer styles */
+footer {
+  padding: 2rem 0;
+  background-color: #343a40;
+  color: white;
+}
+
+/* Status messages */
+.status-message {
+  font-weight: 500;
+  margin-bottom: 1rem;
+}
+
+/* Download button */
+.download-btn {
+  padding: 0.75rem 2rem;
+  font-weight: 600;
+}
+
+/* Error message */
+.error-message {
+  color: #dc3545;
+  margin-top: 1rem;
+}
