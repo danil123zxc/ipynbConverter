@@ -127,33 +127,21 @@
                             
                             <form action="/api/upload/" method="post" enctype="multipart/form-data" id="upload-form">
                                 <div class="dropzone" id="dropzone">
-                                    <input type="file" name="notebook_file" id="file-input" accept=".ipynb" style="display: none;" required>
+                                    <input type="file" name="notebook_file" id="file-input" accept=".ipynb" style="display: none;" required multiple>
                                     <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary mb-3">
                                         <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
                                         <polyline points="17 8 12 3 7 8"></polyline>
                                         <line x1="12" y1="3" x2="12" y2="15"></line>
                                     </svg>
                                     <div id="dropzone-text">
-                                        <p class="mb-2">Drag & drop your Jupyter Notebook file here</p>
+                                        <p class="mb-2">Drag & drop your Jupyter Notebook files here</p>
                                         <p class="text-muted small mb-0">or click to browse files</p>
-                                        <p class="text-muted small mb-0 mt-2">(Maximum file size: 20MB)</p>
+                                        <p class="text-muted small mb-0 mt-2">(Maximum file size: 20MB per file)</p>
+                                        <p class="text-muted small mb-0">You can select multiple files!</p>
                                     </div>
-                                    <div id="file-info" style="display: none;" class="mt-3">
-                                        <div class="card bg-light p-3">
-                                            <div class="d-flex align-items-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-primary me-3">
-                                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                                                    <polyline points="14 2 14 8 20 8"></polyline>
-                                                    <line x1="16" y1="13" x2="8" y2="13"></line>
-                                                    <line x1="16" y1="17" x2="8" y2="17"></line>
-                                                    <polyline points="10 9 9 9 8 9"></polyline>
-                                                </svg>
-                                                <div class="flex-grow-1">
-                                                    <p class="mb-0 fw-semibold" id="file-name"></p>
-                                                    <p class="text-muted small mb-0" id="file-size"></p>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div id="files-list" style="display: none;" class="mt-3">
+                                        <h6 class="mb-3">Selected Files:</h6>
+                                        <div id="files-container"></div>
                                     </div>
                                 </div>
                                 <input type="hidden" name="original_filename" id="original-filename">
@@ -279,9 +267,8 @@
         document.addEventListener('DOMContentLoaded', function() {
             const dropzone = document.getElementById('dropzone');
             const fileInput = document.getElementById('file-input');
-            const fileInfo = document.getElementById('file-info');
-            const fileName = document.getElementById('file-name');
-            const fileSize = document.getElementById('file-size');
+            const filesList = document.getElementById('files-list');
+            const filesContainer = document.getElementById('files-container');
             const dropzoneText = document.getElementById('dropzone-text');
             const uploadForm = document.getElementById('upload-form');
             const buttonContainer = document.getElementById('button-container');
@@ -299,8 +286,11 @@
             const errorMessage = document.getElementById('error-message');
             const tryAgainBtn = document.getElementById('try-again-btn');
             
+            const selectedFiles = new Set();
             let conversionId = null;
             let pollingInterval = null;
+            let currentFileIndex = 0;
+            let convertedFiles = [];
             
             // Handle file drop
             ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -335,7 +325,7 @@
                 const files = dt.files;
                 
                 if (files.length > 0) {
-                    handleFiles(files[0]);
+                    handleFiles(files);
                 }
             }
             
@@ -345,40 +335,166 @@
             
             fileInput.addEventListener('change', function() {
                 if (fileInput.files.length > 0) {
-                    handleFiles(fileInput.files[0]);
+                    handleFiles(fileInput.files);
                 }
             });
             
-            function handleFiles(file) {
-                // Validate file type
-                if (!file.name.endsWith('.ipynb')) {
-                    showError('Only Jupyter Notebook (.ipynb) files are accepted');
+            function handleFiles(filesList) {
+                // Clear previous errors
+                uploadError.style.display = 'none';
+                
+                // Process each file
+                let validFiles = [];
+                
+                for (let i = 0; i < filesList.length; i++) {
+                    const file = filesList[i];
+                    
+                    // Validate file type
+                    if (!file.name.endsWith('.ipynb')) {
+                        showError(`"${file.name}" is not a Jupyter Notebook file (.ipynb)`);
+                        continue;
+                    }
+                    
+                    // Validate file size (20MB max)
+                    const maxSizeInBytes = 20 * 1024 * 1024;
+                    if (file.size > maxSizeInBytes) {
+                        showError(`"${file.name}" exceeds the size limit of 20MB`);
+                        continue;
+                    }
+                    
+                    validFiles.push(file);
+                }
+                
+                if (validFiles.length === 0) {
                     return;
                 }
                 
-                // Validate file size (20MB max)
-                const maxSizeInBytes = 20 * 1024 * 1024;
-                if (file.size > maxSizeInBytes) {
-                    showError('File size exceeds the limit of 20MB');
-                    return;
-                }
-                
-                // Update UI
-                fileInput.files = new DataTransfer().files;
-                fileInput.files = new DataTransfer().files;
-                fileInput.files = new DataTransfer().files;
+                // Create a DataTransfer object to set the files
                 const dataTransfer = new DataTransfer();
-                dataTransfer.items.add(file);
+                
+                // Add each file to the selection
+                validFiles.forEach(file => {
+                    dataTransfer.items.add(file);
+                    selectedFiles.add(file.name);
+                });
+                
+                // Replace the files in the input element
                 fileInput.files = dataTransfer.files;
                 
-                fileName.textContent = file.name;
-                fileSize.textContent = (file.size / 1024).toFixed(2) + ' KB';
-                originalFilename.value = file.name;
+                // Update UI
+                updateFilesListUI();
+            }
+            
+            function updateFilesListUI() {
+                // Clear the files container
+                filesContainer.innerHTML = '';
                 
-                dropzoneText.style.display = 'none';
-                fileInfo.style.display = 'block';
-                buttonContainer.style.display = 'flex';
-                uploadError.style.display = 'none';
+                // Create a file card for each selected file
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    const file = fileInput.files[i];
+                    const fileCard = createFileCard(file, i);
+                    filesContainer.appendChild(fileCard);
+                }
+                
+                // Update form visibility
+                if (fileInput.files.length > 0) {
+                    dropzoneText.style.display = 'none';
+                    filesList.style.display = 'block';
+                    buttonContainer.style.display = 'flex';
+                } else {
+                    dropzoneText.style.display = 'block';
+                    filesList.style.display = 'none';
+                    buttonContainer.style.display = 'none';
+                }
+            }
+            
+            function createFileCard(file, index) {
+                const fileCard = document.createElement('div');
+                fileCard.className = 'card bg-light p-3 mb-2';
+                
+                const content = document.createElement('div');
+                content.className = 'd-flex align-items-center justify-content-between';
+                
+                const fileInfo = document.createElement('div');
+                fileInfo.className = 'd-flex align-items-center';
+                
+                const fileIcon = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+                fileIcon.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                fileIcon.setAttribute('width', '24');
+                fileIcon.setAttribute('height', '24');
+                fileIcon.setAttribute('viewBox', '0 0 24 24');
+                fileIcon.setAttribute('fill', 'none');
+                fileIcon.setAttribute('stroke', 'currentColor');
+                fileIcon.setAttribute('stroke-width', '2');
+                fileIcon.setAttribute('stroke-linecap', 'round');
+                fileIcon.setAttribute('stroke-linejoin', 'round');
+                fileIcon.classList.add('text-primary', 'me-3');
+                
+                fileIcon.innerHTML = `
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                    <polyline points="14 2 14 8 20 8"></polyline>
+                    <line x1="16" y1="13" x2="8" y2="13"></line>
+                    <line x1="16" y1="17" x2="8" y2="17"></line>
+                    <polyline points="10 9 9 9 8 9"></polyline>
+                `;
+                
+                fileInfo.appendChild(fileIcon);
+                
+                const fileDetails = document.createElement('div');
+                fileDetails.className = 'flex-grow-1';
+                
+                const fileName = document.createElement('p');
+                fileName.className = 'mb-0 fw-semibold';
+                fileName.textContent = file.name;
+                
+                const fileSize = document.createElement('p');
+                fileSize.className = 'text-muted small mb-0';
+                fileSize.textContent = `${(file.size / 1024).toFixed(2)} KB`;
+                
+                fileDetails.appendChild(fileName);
+                fileDetails.appendChild(fileSize);
+                fileInfo.appendChild(fileDetails);
+                
+                content.appendChild(fileInfo);
+                
+                const removeBtn = document.createElement('button');
+                removeBtn.className = 'btn btn-sm btn-outline-danger';
+                removeBtn.type = 'button';
+                removeBtn.innerHTML = `
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" 
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather feather-x">
+                        <line x1="18" y1="6" x2="6" y2="18"></line>
+                        <line x1="6" y1="6" x2="18" y2="18"></line>
+                    </svg>
+                `;
+                removeBtn.addEventListener('click', function() {
+                    removeFile(index);
+                });
+                
+                content.appendChild(removeBtn);
+                fileCard.appendChild(content);
+                
+                return fileCard;
+            }
+            
+            function removeFile(index) {
+                // Create a new DataTransfer object
+                const dataTransfer = new DataTransfer();
+                
+                // Add all files except the one being removed
+                for (let i = 0; i < fileInput.files.length; i++) {
+                    if (i !== index) {
+                        dataTransfer.items.add(fileInput.files[i]);
+                    } else {
+                        selectedFiles.delete(fileInput.files[i].name);
+                    }
+                }
+                
+                // Update the files in the input element
+                fileInput.files = dataTransfer.files;
+                
+                // Update UI
+                updateFilesListUI();
             }
             
             cancelBtn.addEventListener('click', function() {
@@ -387,13 +503,18 @@
             
             function resetForm() {
                 fileInput.value = '';
+                selectedFiles.clear();
                 dropzoneText.style.display = 'block';
-                fileInfo.style.display = 'none';
+                filesList.style.display = 'none';
                 buttonContainer.style.display = 'none';
                 uploadError.style.display = 'none';
                 progressContainer.style.display = 'none';
                 completedContainer.style.display = 'none';
                 failedContainer.style.display = 'none';
+                filesContainer.innerHTML = '';
+                dropzone.style.display = 'block';
+                convertedFiles = [];
+                currentFileIndex = 0;
             }
             
             function showError(message) {
@@ -404,21 +525,51 @@
             uploadForm.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                if (!fileInput.files[0]) {
-                    showError('Please select a file to upload');
+                if (fileInput.files.length === 0) {
+                    showError('Please select at least one file to upload');
                     return;
                 }
                 
-                // Prepare form data
-                const formData = new FormData();
-                formData.append('notebook_file', fileInput.files[0]);
-                formData.append('original_filename', fileInput.files[0].name);
+                // Start the conversion process
+                convertedFiles = [];
+                currentFileIndex = 0;
                 
                 // Update UI
-                submitBtn.disabled = true;
-                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Uploading...';
+                dropzone.style.display = 'none';
+                buttonContainer.style.display = 'none';
+                progressContainer.style.display = 'block';
+                
+                // Begin converting the first file
+                convertNextFile();
+            });
+            
+            function convertNextFile() {
+                if (currentFileIndex >= fileInput.files.length) {
+                    // All files have been processed
+                    displayResults();
+                    return;
+                }
+                
+                const file = fileInput.files[currentFileIndex];
+                
+                // Update UI with current file info
+                statusMessage.innerHTML = `
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Converting...</span>
+                    </div>
+                    <h5 class="mt-3">Converting file ${currentFileIndex + 1} of ${fileInput.files.length}</h5>
+                    <p class="text-muted">${file.name}</p>
+                `;
+                
+                // Prepare form data
+                const formData = new FormData();
+                formData.append('notebook_file', file);
+                formData.append('original_filename', file.name);
                 
                 // Submit form via AJAX
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>Converting...';
+                
                 axios.post('/api/upload/', formData, {
                     headers: {
                         'Content-Type': 'multipart/form-data'
@@ -426,15 +577,9 @@
                 })
                 .then(function(response) {
                     conversionId = response.data.id;
-                    dropzone.style.display = 'none';
-                    buttonContainer.style.display = 'none';
-                    progressContainer.style.display = 'block';
                     startPolling();
                 })
                 .catch(function(error) {
-                    submitBtn.disabled = false;
-                    submitBtn.textContent = 'Convert to PDF';
-                    
                     let errorMsg = 'An error occurred during upload. Please try again.';
                     if (error.response && error.response.data) {
                         if (error.response.data.notebook_file) {
@@ -444,9 +589,18 @@
                         }
                     }
                     
-                    showError(errorMsg);
+                    // Record the error
+                    convertedFiles.push({
+                        filename: file.name,
+                        success: false,
+                        error: errorMsg
+                    });
+                    
+                    // Move to the next file
+                    currentFileIndex++;
+                    convertNextFile();
                 });
-            });
+            }
             
             function startPolling() {
                 checkStatus();
@@ -458,10 +612,42 @@
                 
                 axios.get(`/api/conversion-status/${conversionId}/`)
                     .then(function(response) {
-                        updateProgressUI(response.data);
+                        const data = response.data;
                         
-                        if (response.data.status === 'completed' || response.data.status === 'failed') {
+                        // Update progress based on status
+                        let progressPercentage = 0;
+                        switch (data.status) {
+                            case 'pending':
+                                progressPercentage = 10;
+                                break;
+                            case 'processing':
+                                progressPercentage = 50;
+                                break;
+                            case 'completed':
+                                progressPercentage = 100;
+                                break;
+                            case 'failed':
+                                progressPercentage = 0;
+                                break;
+                        }
+                        
+                        // Update the progress bar
+                        progressBar.style.width = progressPercentage + '%';
+                        
+                        if (data.status === 'completed' || data.status === 'failed') {
                             clearInterval(pollingInterval);
+                            
+                            // Record the result
+                            convertedFiles.push({
+                                filename: fileInput.files[currentFileIndex].name,
+                                success: data.status === 'completed',
+                                error: data.error_message,
+                                pdfUrl: data.pdf_url
+                            });
+                            
+                            // Move to the next file
+                            currentFileIndex++;
+                            convertNextFile();
                         }
                     })
                     .catch(function(error) {
@@ -469,60 +655,132 @@
                     });
             }
             
-            function updateProgressUI(data) {
-                let progressPercentage = 0;
+            function displayResults() {
+                // Hide progress container
+                progressContainer.style.display = 'none';
                 
-                switch (data.status) {
-                    case 'pending':
-                        progressPercentage = 10;
-                        statusMessage.innerHTML = `
-                            <div class="spinner-grow text-primary" role="status">
-                                <span class="visually-hidden">Preparing...</span>
+                // Check if we have any successful conversions
+                const successfulConversions = convertedFiles.filter(file => file.success);
+                
+                if (successfulConversions.length > 0) {
+                    // Display completion UI
+                    completedContainer.style.display = 'block';
+                    
+                    // If there's only one successful conversion, link directly to it
+                    if (successfulConversions.length === 1) {
+                        downloadLink.href = successfulConversions[0].pdfUrl;
+                        downloadLink.download = '';
+                    } else {
+                        // For multiple files, create a list of download links
+                        completedContainer.innerHTML = `
+                            <div class="text-success mb-3">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                                    <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                                </svg>
                             </div>
-                            <h5 class="mt-3">Preparing your file for conversion</h5>
-                            <p class="text-muted">This won't take long...</p>
-                        `;
-                        break;
-                    
-                    case 'processing':
-                        progressPercentage = 50;
-                        statusMessage.innerHTML = `
-                            <div class="spinner-border text-primary" role="status">
-                                <span class="visually-hidden">Converting...</span>
+                            <h5 class="mb-4">Conversion Completed!</h5>
+                            <div class="list-group mb-4" style="max-height: 300px; overflow-y: auto;">
+                                ${successfulConversions.map(file => `
+                                    <a href="${file.pdfUrl}" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center" download>
+                                        <div>
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="me-2">
+                                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                                <polyline points="14 2 14 8 20 8"></polyline>
+                                                <line x1="16" y1="13" x2="8" y2="13"></line>
+                                                <line x1="16" y1="17" x2="8" y2="17"></line>
+                                                <polyline points="10 9 9 9 8 9"></polyline>
+                                            </svg>
+                                            ${file.filename.replace('.ipynb', '.pdf')}
+                                        </div>
+                                        <span class="badge bg-primary rounded-pill">
+                                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                                                <polyline points="7 10 12 15 17 10"></polyline>
+                                                <line x1="12" y1="15" x2="12" y2="3"></line>
+                                            </svg>
+                                        </span>
+                                    </a>
+                                `).join('')}
                             </div>
-                            <h5 class="mt-3">Converting your notebook to PDF</h5>
-                            <p class="text-muted">Processing code cells, markdown, and outputs...</p>
+                            <button class="btn btn-outline-secondary mt-3" id="convert-another-btn">
+                                Convert More Notebooks
+                            </button>
                         `;
-                        break;
+                        
+                        // Re-attach event listener for the convert button
+                        document.getElementById('convert-another-btn').addEventListener('click', function() {
+                            resetForm();
+                        });
+                    }
                     
-                    case 'completed':
-                        progressPercentage = 100;
-                        progressContainer.style.display = 'none';
-                        completedContainer.style.display = 'block';
-                        downloadLink.href = data.pdf_url;
-                        break;
+                    // Check if there were any failures
+                    const failedConversions = convertedFiles.filter(file => !file.success);
+                    if (failedConversions.length > 0) {
+                        // Create a failed section
+                        const failureSection = document.createElement('div');
+                        failureSection.className = 'mt-4 pt-4 border-top';
+                        failureSection.innerHTML = `
+                            <h6 class="text-danger mb-3">Some files failed to convert:</h6>
+                            <ul class="list-group">
+                                ${failedConversions.map(file => `
+                                    <li class="list-group-item list-group-item-danger">
+                                        <p class="mb-0"><strong>${file.filename}</strong></p>
+                                        <small>${file.error || 'Unknown error'}</small>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        `;
+                        
+                        completedContainer.appendChild(failureSection);
+                    }
+                } else {
+                    // All conversions failed
+                    failedContainer.style.display = 'block';
+                    failedContainer.innerHTML = `
+                        <div class="text-danger mb-3">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <line x1="12" y1="8" x2="12" y2="12"></line>
+                                <line x1="12" y1="16" x2="12.01" y2="16"></line>
+                            </svg>
+                        </div>
+                        <h5 class="mb-2">Conversion Failed</h5>
+                        <div class="alert alert-danger mt-3 mb-4">
+                            <strong>Error:</strong> All files failed to convert
+                        </div>
+                        <div class="list-group mb-4" style="max-height: 300px; overflow-y: auto;">
+                            ${convertedFiles.map(file => `
+                                <div class="list-group-item list-group-item-danger">
+                                    <p class="mb-0"><strong>${file.filename}</strong></p>
+                                    <small>${file.error || 'Unknown error'}</small>
+                                </div>
+                            `).join('')}
+                        </div>
+                        <button class="btn btn-primary" id="try-again-btn">
+                            Try Again
+                        </button>
+                    `;
                     
-                    case 'failed':
-                        progressContainer.style.display = 'none';
-                        failedContainer.style.display = 'block';
-                        errorMessage.textContent = data.error_message || 'An unexpected error occurred';
-                        break;
+                    // Re-attach event listener for try again button
+                    document.getElementById('try-again-btn').addEventListener('click', function() {
+                        resetForm();
+                    });
                 }
-                
-                progressBar.style.width = progressPercentage + '%';
             }
             
-            convertAnotherBtn.addEventListener('click', function() {
-                resetForm();
-                dropzone.style.display = 'block';
-                completedContainer.style.display = 'none';
-            });
+            // Initial event listeners for the "Convert Another" and "Try Again" buttons
+            if (convertAnotherBtn) {
+                convertAnotherBtn.addEventListener('click', function() {
+                    resetForm();
+                });
+            }
             
-            tryAgainBtn.addEventListener('click', function() {
-                resetForm();
-                dropzone.style.display = 'block';
-                failedContainer.style.display = 'none';
-            });
+            if (tryAgainBtn) {
+                tryAgainBtn.addEventListener('click', function() {
+                    resetForm();
+                });
+            }
         });
     </script>
 </body>
